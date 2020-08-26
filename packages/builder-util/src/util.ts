@@ -89,47 +89,51 @@ export function exec(file: string, args?: Array<string> | null, options?: ExecFi
     log.debug(logFields, "executing")
   }
 
-  return new Promise<string>((resolve, reject) => {
-    execFile(file, args, {
-    ...options,
-    maxBuffer: 1000 * 1024 * 1024,
-    env: getProcessEnv(options == null ? null : options.env),
-  }, (error, stdout, stderr) => {
-      if (error == null) {
-        if (isLogOutIfDebug && log.isDebugEnabled) {
-          const logFields: any = {
-            file,
+  function runCommand() {
+    return new Promise<string>((resolve, reject) => {
+      execFile(file, args, {
+      ...options,
+      maxBuffer: 1000 * 1024 * 1024,
+      env: getProcessEnv(options == null ? null : options.env),
+    }, (error, stdout, stderr) => {
+        if (error == null) {
+          if (isLogOutIfDebug && log.isDebugEnabled) {
+            const logFields: any = {
+              file,
+            }
+            if (stdout.length > 0) {
+              logFields.stdout = stdout
+            }
+            if (stderr.length > 0) {
+              logFields.stderr = stderr
+            }
+
+            log.debug(logFields, "executed")
           }
-          if (stdout.length > 0) {
-            logFields.stdout = stdout
+          resolve(stdout.toString())
+        }
+        else {
+          let message = chalk.red(removePassword(`Exit code: ${(error as any).code}. ${error.message}`))
+          if (stdout.length !== 0) {
+            if (file.endsWith("wine")) {
+              stdout = stdout.toString()
+            }
+            message += `\n${chalk.yellow(stdout.toString())}`
           }
-          if (stderr.length > 0) {
-            logFields.stderr = stderr
+          if (stderr.length !== 0) {
+            if (file.endsWith("wine")) {
+              stderr = stderr.toString()
+            }
+            message += `\n${chalk.red(stderr.toString())}`
           }
 
-          log.debug(logFields, "executed")
+          reject(new Error(message))
         }
-        resolve(stdout.toString())
-      }
-      else {
-        let message = chalk.red(removePassword(`Exit code: ${(error as any).code}. ${error.message}`))
-        if (stdout.length !== 0) {
-          if (file.endsWith("wine")) {
-            stdout = stdout.toString()
-          }
-          message += `\n${chalk.yellow(stdout.toString())}`
-        }
-        if (stderr.length !== 0) {
-          if (file.endsWith("wine")) {
-            stderr = stderr.toString()
-          }
-          message += `\n${chalk.red(stderr.toString())}`
-        }
-
-        reject(new Error(message))
-      }
+      })
     })
-  })
+  }
+
+  return runCommand()
 }
 
 export interface ExtraSpawnOptions {
